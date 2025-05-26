@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { format, isToday, isTomorrow, isPast } from 'date-fns'
 import { toast } from 'react-toastify'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
+import ApperIcon from './ApperIcon'
+
 
 
 const MainFeature = ({ 
@@ -145,7 +147,6 @@ const MainFeature = ({
 
     return filtered
   }, [tasks, searchTerm, filterBy, sortBy])
-  }, [tasks, searchTerm, filterBy, sortBy])
 
   const kanbanColumns = {
     pending: {
@@ -197,6 +198,8 @@ const MainFeature = ({
       
       toast.success(statusMessages[newStatus] || 'Task status updated')
     }
+  }
+
 
 
   return (
@@ -528,6 +531,7 @@ const MainFeature = ({
             </motion.div>
           )}
         </div>
+      ) : (
         // Kanban View
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
