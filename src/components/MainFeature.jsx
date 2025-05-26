@@ -203,6 +203,8 @@ const MainFeature = ({
 
 
   return (
+    <>
+
     <div className="space-y-6">
       {/* Header Section */}
       <div className="bg-white dark:bg-surface-800 rounded-2xl p-6 shadow-soft border border-surface-200 dark:border-surface-700">
@@ -667,6 +669,8 @@ const MainFeature = ({
         </DragDropContext>
 
     </div>
+    </>
+
   )
 }
 
