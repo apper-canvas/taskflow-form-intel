@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { format, isToday, isTomorrow, isPast } from 'date-fns'
 import { toast } from 'react-toastify'
-import ApperIcon from './ApperIcon'
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
+
 
 const MainFeature = ({ 
   tasks, 
@@ -144,12 +145,59 @@ const MainFeature = ({
 
     return filtered
   }, [tasks, searchTerm, filterBy, sortBy])
+  }, [tasks, searchTerm, filterBy, sortBy])
 
   const kanbanColumns = {
-    pending: filteredAndSortedTasks.filter(task => task.status === 'pending'),
-    'in-progress': filteredAndSortedTasks.filter(task => task.status === 'in-progress'),
-    completed: filteredAndSortedTasks.filter(task => task.status === 'completed')
+    pending: {
+      id: 'pending',
+      title: 'To Do',
+      tasks: filteredAndSortedTasks.filter(task => task.status === 'pending')
+    },
+    'in-progress': {
+      id: 'in-progress', 
+      title: 'In Progress',
+      tasks: filteredAndSortedTasks.filter(task => task.status === 'in-progress')
+    },
+    completed: {
+      id: 'completed',
+      title: 'Complete', 
+      tasks: filteredAndSortedTasks.filter(task => task.status === 'completed')
+    }
   }
+
+  const handleDragEnd = (result) => {
+    const { destination, source, draggableId } = result
+
+    // If no destination, return
+    if (!destination) return
+
+    // If dropped in same position, return
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
+      return
+    }
+
+    // Find the task being moved
+    const task = tasks.find(t => t.id === draggableId)
+    if (!task) return
+
+    // Update task status based on destination column
+    const newStatus = destination.droppableId
+    if (newStatus !== task.status) {
+      onUpdateTask(task.id, { status: newStatus })
+      
+      // Show appropriate toast message
+      const statusMessages = {
+        'pending': 'Task moved to To Do',
+        'in-progress': 'Task moved to In Progress', 
+        'completed': 'Task completed! 🎉'
+      }
+      
+      toast.success(statusMessages[newStatus] || 'Task status updated')
+    }
+
 
   return (
     <div className="space-y-6">
@@ -480,86 +528,140 @@ const MainFeature = ({
             </motion.div>
           )}
         </div>
-      ) : (
         // Kanban View
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {Object.entries(kanbanColumns).map(([status, statusTasks]) => (
-            <div key={status} className="bg-white dark:bg-surface-800 rounded-2xl p-6 shadow-soft border border-surface-200 dark:border-surface-700">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-surface-900 dark:text-white capitalize">
-                  {status.replace('-', ' ')}
-                </h3>
-                <span className="text-sm text-surface-500 bg-surface-100 dark:bg-surface-700 px-2 py-1 rounded-lg">
-                  {statusTasks.length}
-                </span>
-              </div>
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {Object.values(kanbanColumns).map((column) => (
+              <div key={column.id} className="bg-white dark:bg-surface-800 rounded-2xl p-6 shadow-soft border border-surface-200 dark:border-surface-700">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-surface-900 dark:text-white">
+                    {column.title}
+                  </h3>
+                  <span className="text-sm text-surface-500 bg-surface-100 dark:bg-surface-700 px-2 py-1 rounded-lg">
+                    {column.tasks.length}
+                  </span>
+                </div>
 
-              <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-hide">
-                <AnimatePresence>
-                  {statusTasks.map((task, index) => {
-                    const project = projects.find(p => p.id === task.projectId)
-                    const dueDateInfo = getDueDateDisplay(task.dueDate)
+                <Droppable droppableId={column.id}>
+                  {(provided, snapshot) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className={`space-y-3 min-h-96 max-h-96 overflow-y-auto scrollbar-hide kanban-column transition-all ${
+                        snapshot.isDraggingOver ? 'kanban-column-drag-over' : ''
+                      }`}
+                    >
+                      <AnimatePresence>
+                        {column.tasks.map((task, index) => {
+                          const project = projects.find(p => p.id === task.projectId)
+                          const dueDateInfo = getDueDateDisplay(task.dueDate)
 
-                    return (
-                      <motion.div
-                        key={task.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.2, delay: index * 0.05 }}
-                        className="bg-surface-50 dark:bg-surface-700 rounded-xl p-4 hover:shadow-md transition-all cursor-pointer group"
-                        onClick={() => handleEdit(task)}
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-medium text-surface-900 dark:text-white group-hover:text-primary transition-colors">
-                            {task.title}
-                          </h4>
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded ${getPriorityColor(task.priority)}`}>
-                            {task.priority}
-                          </span>
+                          return (
+                            <Draggable key={task.id} draggableId={task.id} index={index}>
+                              {(provided, snapshot) => (
+                                <motion.div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  initial={{ opacity: 0, y: 20 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, scale: 0.95 }}
+                                  transition={{ duration: 0.2, delay: index * 0.05 }}
+                                  className={`bg-surface-50 dark:bg-surface-700 rounded-xl p-4 hover:shadow-md transition-all cursor-pointer group ${
+                                    snapshot.isDragging ? 'task-card-dragging shadow-lg z-50' : ''
+                                  }`}
+                                >
+                                  {/* Drag Handle */}
+                                  <div 
+                                    {...provided.dragHandleProps}
+                                    className="flex items-center justify-between mb-2"
+                                  >
+                                    <div className="flex items-center space-x-2">
+                                      <div className="grid grid-cols-2 gap-0.5 opacity-40 group-hover:opacity-70 transition-opacity">
+                                        <div className="w-1 h-1 bg-surface-400 rounded-full"></div>
+                                        <div className="w-1 h-1 bg-surface-400 rounded-full"></div>
+                                        <div className="w-1 h-1 bg-surface-400 rounded-full"></div>
+                                        <div className="w-1 h-1 bg-surface-400 rounded-full"></div>
+                                      </div>
+                                      <h4 className="font-medium text-surface-900 dark:text-white group-hover:text-primary transition-colors line-clamp-1">
+                                        {task.title}
+                                      </h4>
+                                    </div>
+                                    <span className={`px-2 py-0.5 text-xs font-medium rounded ${getPriorityColor(task.priority)}`}>
+                                      {task.priority}
+                                    </span>
+                                  </div>
+
+                                  {task.description && (
+                                    <p className="text-sm text-surface-600 dark:text-surface-400 mb-3 line-clamp-2">
+                                      {task.description}
+                                    </p>
+                                  )}
+
+                                  <div className="flex items-center justify-between text-xs">
+                                    {project && (
+                                      <div className="flex items-center space-x-1">
+                                        <div 
+                                          className="w-2 h-2 rounded-full"
+                                          style={{ backgroundColor: project.color }}
+                                        />
+                                        <span className="text-surface-600 dark:text-surface-400 truncate">
+                                          {project.name}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {dueDateInfo && (
+                                      <span className={`${dueDateInfo.color} font-medium`}>
+                                        {dueDateInfo.text}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Quick Actions */}
+                                  <div className="flex items-center justify-end space-x-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleEdit(task)
+                                      }}
+                                      className="p-1 hover:bg-surface-200 dark:hover:bg-surface-600 rounded transition-colors"
+                                    >
+                                      <ApperIcon name="Edit2" className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        onDeleteTask(task.id)
+                                      }}
+                                      className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 rounded transition-colors"
+                                    >
+                                      <ApperIcon name="Trash2" className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </motion.div>
+                              )}
+                            </Draggable>
+                          )
+                        })}
+                      </AnimatePresence>
+                      {provided.placeholder}
+
+                      {/* Empty State */}
+                      {column.tasks.length === 0 && (
+                        <div className="text-center py-8 text-surface-400">
+                          <ApperIcon name="Plus" className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No {column.title.toLowerCase()} tasks</p>
+                          <p className="text-xs mt-1">Drag tasks here or create new ones</p>
                         </div>
-
-                        {task.description && (
-                          <p className="text-sm text-surface-600 dark:text-surface-400 mb-3 line-clamp-2">
-                            {task.description}
-                          </p>
-                        )}
-
-                        <div className="flex items-center justify-between text-xs">
-                          {project && (
-                            <div className="flex items-center space-x-1">
-                              <div 
-                                className="w-2 h-2 rounded-full"
-                                style={{ backgroundColor: project.color }}
-                              />
-                              <span className="text-surface-600 dark:text-surface-400">
-                                {project.name}
-                              </span>
-                            </div>
-                          )}
-
-                          {dueDateInfo && (
-                            <span className={dueDateInfo.color}>
-                              {dueDateInfo.text}
-                            </span>
-                          )}
-                        </div>
-                      </motion.div>
-                    )
-                  })}
-                </AnimatePresence>
-
-                {statusTasks.length === 0 && (
-                  <div className="text-center py-8 text-surface-400">
-                    <ApperIcon name="Plus" className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No {status.replace('-', ' ')} tasks</p>
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )}
+                </Droppable>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        </DragDropContext>
+
     </div>
   )
 }
