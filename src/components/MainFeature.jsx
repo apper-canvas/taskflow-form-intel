@@ -204,6 +204,7 @@ const MainFeature = ({
 
   return (
     <>
+      <div className="space-y-6">
 
     <div className="space-y-6">
       {/* Header Section */}
@@ -668,10 +669,10 @@ const MainFeature = ({
           </div>
         </DragDropContext>
 
-    </div>
+      </div>
     </>
-
   )
+
 }
 
 export default MainFeature
